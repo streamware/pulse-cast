@@ -1,6 +1,14 @@
+extern crate pulse_cast;
+use std::env;
+
 use axum::{extract::Extension, routing::post, routing::get, Router};
+use diesel::{connection, insert_into, Connection, SqliteConnection};
+use dotenvy::dotenv;
 use oauth_fcm::{create_shared_token_manager, send_fcm_message, FcmNotification, SharedTokenManager};
+use pulse_cast::models::{device::Device, user::User};
 use serde::Serialize;
+use diesel::prelude::*;
+
 
 #[derive(Serialize)]
 struct MyData {
@@ -35,6 +43,26 @@ async fn root() -> &'static str {
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
+
+    use self::pulse_cast::schema::users::dsl::*;
+
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+
+    let mut conncetion = SqliteConnection::establish(&database_url).unwrap_or_else(|_| panic!("Error connecting to {}", database_url));
+
+    let results = insert_into(users)
+    .values(vec![
+        User {
+            id: Some("1".to_string()),
+            username: "test".to_string(),
+            created_at: "2021-08-01".to_string(),
+            updated_at: "2021-08-01".to_string(),
+        },
+    ])
+        .execute(&mut conncetion);
+
+
     let shared_token_manager = create_shared_token_manager("./firebase.json")
         .expect("Could not find credentials.json");
 

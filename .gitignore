@@ -1,3 +1,4 @@
 /target
 .env
 firebase.json
+db.sqlite3
