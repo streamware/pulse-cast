@@ -2,7 +2,7 @@
 
 diesel::table! {
     devices (id) {
-        id -> Nullable<Text>,
+        id -> Integer,
         owner -> Text,
         device_name -> Text,
         device_type -> Text,
@@ -16,12 +16,14 @@ diesel::table! {
 
 diesel::table! {
     users (id) {
-        id -> Nullable<Text>,
+        id -> Text,
         username -> Text,
         created_at -> Text,
         updated_at -> Text,
     }
 }
+
+diesel::joinable!(devices -> users (owner));
 
 diesel::allow_tables_to_appear_in_same_query!(
     devices,
