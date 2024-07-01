@@ -2,15 +2,15 @@
 
 diesel::table! {
     devices (id) {
-        id -> Integer,
+        id -> Int4,
         owner -> Text,
         device_name -> Text,
         device_type -> Text,
         device_token -> Text,
         os_version -> Text,
         enabled -> Bool,
-        created_at -> Text,
-        updated_at -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -18,14 +18,11 @@ diesel::table! {
     users (id) {
         id -> Text,
         username -> Text,
-        created_at -> Text,
-        updated_at -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
 diesel::joinable!(devices -> users (owner));
 
-diesel::allow_tables_to_appear_in_same_query!(
-    devices,
-    users,
-);
+diesel::allow_tables_to_appear_in_same_query!(devices, users,);

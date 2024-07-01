@@ -1,11 +1,16 @@
 use std::io;
 
+use bb8::Pool;
+use diesel_async::{pooled_connection::AsyncDieselConnectionManager, AsyncPgConnection};
 use futures::TryStreamExt;
 use pulsar::{Consumer, DeserializeMessage, TokioExecutor};
 
 use super::messages::MessageHandler;
 
-pub async fn run_consumer<T>(mut consumer: Consumer<T, TokioExecutor>) -> Result<(), io::Error>
+pub async fn run_consumer<T>(
+    mut consumer: Consumer<T, TokioExecutor>,
+    pool: Pool<AsyncDieselConnectionManager<AsyncPgConnection>>,
+) -> Result<(), io::Error>
 where
     T: DeserializeMessage<Output = Result<T, serde_json::Error>>
         + MessageHandler
@@ -25,9 +30,7 @@ where
                 break;
             }
         };
-        data.handle_message()?;
-        // let payload = msg.deserialize()?;
-        println!("Received message: {:?}", data);
+        data.handle_message(&pool).await?;
 
         // Acknowledge the message
         consumer.ack(&msg).await.map_err(|e| {

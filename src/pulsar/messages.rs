@@ -1,8 +1,22 @@
+use bb8::Pool;
+use chrono::{DateTime, Utc};
+use diesel::insert_into;
+use diesel_async::{
+    pooled_connection::AsyncDieselConnectionManager, AsyncPgConnection, RunQueryDsl,
+};
 use pulsar::{DeserializeMessage, Payload};
 use serde::Deserialize;
 
+use crate::{
+    models::user::User,
+    schema::{self},
+};
+
 pub trait MessageHandler {
-    fn handle_message(&self) -> Result<(), std::io::Error>;
+    fn handle_message(
+        &self,
+        pool: &Pool<AsyncDieselConnectionManager<AsyncPgConnection>>,
+    ) -> impl std::future::Future<Output = Result<(), std::io::Error>> + Send;
 }
 
 #[derive(Debug, Deserialize)]
@@ -21,8 +35,29 @@ impl DeserializeMessage for UserCreated {
 }
 
 impl MessageHandler for UserCreated {
-    fn handle_message(&self) -> Result<(), std::io::Error> {
-        println!("User created: {:?}", self);
+    async fn handle_message(
+        &self,
+        pool: &Pool<AsyncDieselConnectionManager<AsyncPgConnection>>,
+    ) -> Result<(), std::io::Error> {
+        use schema::users::dsl::*;
+
+        println!("Creating user: {:?}", self.created_at);
+
+        let result = insert_into(users)
+            .values(User {
+                id: self.id.clone(),
+                username: self.username.clone(),
+                created_at: DateTime::parse_from_rfc3339(self.created_at.as_str())
+                    .expect("Failed to parse datetime")
+                    .with_timezone(&Utc)
+                    .naive_utc(), // Convert to NaiveDateTime
+                updated_at: Utc::now().naive_utc(), // Provide a default value for updated_at
+            })
+            .execute(&mut pool.get().await.unwrap())
+            .await;
+
+        println!("User created: {:?} {:?}", self, result);
+
         Ok(())
     }
 }
@@ -41,8 +76,11 @@ impl DeserializeMessage for SendNotification {
 }
 
 impl MessageHandler for SendNotification {
-    fn handle_message(&self) -> Result<(), std::io::Error> {
-        println!("User created: {:?}", self);
+    async fn handle_message(
+        &self,
+        _: &Pool<AsyncDieselConnectionManager<AsyncPgConnection>>,
+    ) -> Result<(), std::io::Error> {
+        println!("notification received: {:?}", self);
         Ok(())
     }
 }

@@ -1,10 +1,11 @@
 use crate::schema::devices;
+use chrono::NaiveDateTime;
 use diesel::prelude::*;
 
 #[derive(Queryable, Selectable)]
 #[diesel(table_name = devices )]
 #[diesel(belongs_to(User))]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Device {
     pub id: i32,
     pub owner: String,
@@ -13,6 +14,6 @@ pub struct Device {
     pub device_token: String,
     pub os_version: String,
     pub enabled: bool,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
