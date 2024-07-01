@@ -1,19 +1,15 @@
 extern crate pulse_cast;
 use axum::{extract::Extension, routing::get, routing::post, Router};
-use diesel::prelude::*;
-use diesel::{insert_into, Connection, SqliteConnection};
+use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 use dotenvy::dotenv;
 use oauth_fcm::{
     create_shared_token_manager, send_fcm_message, FcmNotification, SharedTokenManager,
 };
 use pulsar::{Pulsar, TokioExecutor};
-use pulse_cast::{
-    models::user::User,
-    pulsar::{
-        create_consumer::create_consumer,
-        messages::{SendNotification, UserCreated},
-        run_consumer::run_consumer,
-    },
+use pulse_cast::pulsar::{
+    create_consumer::create_consumer,
+    messages::{SendNotification, UserCreated},
+    run_consumer::run_consumer,
 };
 use serde::Serialize;
 use std::env;
@@ -58,21 +54,10 @@ async fn root() -> &'static str {
 async fn main() -> Result<(), std::io::Error> {
     dotenv().ok();
 
-    use self::pulse_cast::schema::users::dsl::*;
-
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    let mut conncetion =
-        SqliteConnection::establish(&database_url).expect("Failed to connect to database");
-
-    let results = insert_into(users)
-        .values(vec![User {
-            id: "1".to_string(),
-            username: "test".to_string(),
-            created_at: "2021-08-01".to_string(),
-            updated_at: "2021-08-01".to_string(),
-        }])
-        .execute(&mut conncetion);
+    let config = AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(database_url);
+    let pool = bb8::Pool::builder().build(config).await.unwrap();
 
     let addr = env::var("PULSAR_ADDRESS")
         .ok()
@@ -98,8 +83,9 @@ async fn main() -> Result<(), std::io::Error> {
     .await
     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
-    let user_created_runner = task::spawn(run_consumer(user_created_consumer));
-    let send_notification_runner = task::spawn(run_consumer(send_notification_consumer));
+    let user_created_runner = task::spawn(run_consumer(user_created_consumer, pool.clone()));
+    let send_notification_runner =
+        task::spawn(run_consumer(send_notification_consumer, pool.clone()));
 
     let _ = user_created_runner.await?;
     let _ = send_notification_runner.await?;
