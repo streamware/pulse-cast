@@ -3,13 +3,15 @@ use std::io;
 use bb8::Pool;
 use diesel_async::{pooled_connection::AsyncDieselConnectionManager, AsyncPgConnection};
 use futures::TryStreamExt;
-use pulsar::{Consumer, DeserializeMessage, TokioExecutor};
+use oauth_fcm::SharedTokenManager;
+use pulsar::{authentication::token, Consumer, DeserializeMessage, TokioExecutor};
 
 use super::messages::MessageHandler;
 
 pub async fn run_consumer<T>(
     mut consumer: Consumer<T, TokioExecutor>,
     pool: Pool<AsyncDieselConnectionManager<AsyncPgConnection>>,
+    token_manager: SharedTokenManager,
 ) -> Result<(), io::Error>
 where
     T: DeserializeMessage<Output = Result<T, serde_json::Error>>
@@ -30,7 +32,7 @@ where
                 break;
             }
         };
-        data.handle_message(&pool).await?;
+        data.handle_message(&pool, &token_manager).await?;
 
         // Acknowledge the message
         consumer.ack(&msg).await.map_err(|e| {
