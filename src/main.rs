@@ -8,7 +8,7 @@ use oauth_fcm::{
 use pulsar::{Pulsar, TokioExecutor};
 use pulse_cast::pulsar::{
     create_consumer::create_consumer,
-    messages::{SendNotification, UserCreated},
+    messages::{UserCreated, UserNotification},
     run_consumer::run_consumer,
 };
 use serde::Serialize;
@@ -78,9 +78,9 @@ async fn main() -> Result<(), std::io::Error> {
             .await
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
-    let send_notification_consumer = create_consumer::<SendNotification>(
+    let send_notification_consumer = create_consumer::<UserNotification>(
         pulsar.clone(),
-        "SEND_NOTIFCATION",
+        "USER_NOTIFICATION",
         "send-notification-subscription",
     )
     .await

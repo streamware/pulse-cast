@@ -4,7 +4,7 @@ use bb8::Pool;
 use diesel_async::{pooled_connection::AsyncDieselConnectionManager, AsyncPgConnection};
 use futures::TryStreamExt;
 use oauth_fcm::SharedTokenManager;
-use pulsar::{authentication::token, Consumer, DeserializeMessage, TokioExecutor};
+use pulsar::{Consumer, DeserializeMessage, TokioExecutor};
 
 use super::messages::MessageHandler;
 
@@ -32,7 +32,10 @@ where
                 break;
             }
         };
+
         data.handle_message(&pool, &token_manager).await?;
+
+        println!("Received message: {:?}", data);
 
         // Acknowledge the message
         consumer.ack(&msg).await.map_err(|e| {

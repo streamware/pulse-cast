@@ -1,14 +1,16 @@
 use bb8::Pool;
 use chrono::{DateTime, Utc};
-use diesel::insert_into;
+use diesel::{insert_into, query_dsl::methods::FilterDsl, ExpressionMethods};
 use diesel_async::{
     pooled_connection::AsyncDieselConnectionManager, AsyncPgConnection, RunQueryDsl,
 };
+use futures::stream::{self, StreamExt};
+use oauth_fcm::{send_fcm_message, SharedTokenManager};
 use pulsar::{DeserializeMessage, Payload};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    models::user::User,
+    models::{device::Device, user::User},
     schema::{self},
 };
 
@@ -16,6 +18,7 @@ pub trait MessageHandler {
     fn handle_message(
         &self,
         pool: &Pool<AsyncDieselConnectionManager<AsyncPgConnection>>,
+        token_manager: &SharedTokenManager,
     ) -> impl std::future::Future<Output = Result<(), std::io::Error>> + Send;
 }
 
@@ -38,6 +41,7 @@ impl MessageHandler for UserCreated {
     async fn handle_message(
         &self,
         pool: &Pool<AsyncDieselConnectionManager<AsyncPgConnection>>,
+        _: &SharedTokenManager,
     ) -> Result<(), std::io::Error> {
         use schema::users::dsl::*;
 
@@ -62,25 +66,57 @@ impl MessageHandler for UserCreated {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct SendNotification {
-    value: i32,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserNotification {
+    recipient_id: String,
+    sender_id: String,
+    sender_username: String,
+    content: String,
+    created_at: String,
 }
 
-impl DeserializeMessage for SendNotification {
-    type Output = Result<SendNotification, serde_json::Error>;
+impl DeserializeMessage for UserNotification {
+    type Output = Result<UserNotification, serde_json::Error>;
 
     fn deserialize_message(payload: &Payload) -> Self::Output {
         serde_json::from_slice(&payload.data)
     }
 }
 
-impl MessageHandler for SendNotification {
+impl MessageHandler for UserNotification {
     async fn handle_message(
         &self,
-        _: &Pool<AsyncDieselConnectionManager<AsyncPgConnection>>,
+        pool: &Pool<AsyncDieselConnectionManager<AsyncPgConnection>>,
+        token_manager: &SharedTokenManager,
     ) -> Result<(), std::io::Error> {
-        println!("notification received: {:?}", self);
+        use schema::devices::dsl::*;
+
+        let user_tokens: Vec<Device> = devices
+            .filter(owner.eq(self.recipient_id.clone()))
+            .filter(enabled.eq(true))
+            .load(&mut pool.get().await.unwrap())
+            .await
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+        let devices_stream = stream::iter(user_tokens);
+
+        devices_stream
+            .for_each(|device| async move {
+                send_fcm_message(
+                    &device.device_token,
+                    None,
+                    Some(self),
+                    token_manager,
+                    "pheme-1c7fd",
+                )
+                .await
+                .map_err(|e| {
+                    println!("Error sending FCM message: {:?}", e);
+                })
+                .ok();
+            })
+            .await;
+
         Ok(())
     }
 }
