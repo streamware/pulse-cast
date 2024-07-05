@@ -1,50 +1,16 @@
 extern crate pulse_cast;
-use axum::{extract::Extension, routing::get, routing::post, Router};
+use axum::{routing::get, Router};
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 use dotenvy::dotenv;
-use oauth_fcm::{
-    create_shared_token_manager, send_fcm_message, FcmNotification, SharedTokenManager,
-};
+use oauth_fcm::create_shared_token_manager;
 use pulsar::{Pulsar, TokioExecutor};
 use pulse_cast::pulsar::{
     create_consumer::create_consumer,
     messages::{UserCreated, UserNotification},
     run_consumer::run_consumer,
 };
-use serde::Serialize;
 use std::env;
 use tokio::task;
-
-#[derive(Serialize)]
-struct MyData {
-    message: String,
-}
-
-async fn send_notification(
-    Extension(token_manager): Extension<SharedTokenManager>,
-) -> Result<String, String> {
-    let device_token = "fRUVBXSLRm6dHydW2IND8h:APA91bFIMEK1RPvuU4X1ltQbcTMFuanoqgk6_vq-I64TVEbGZ9SDkXAejx7AAmuZ6XWGHx3NR04rRDpmBt2RVSYmXbGAQeKBAwjpaupqZRu5pouVkX49sFfDBTdyOXrRNyKkHoPUJwks";
-    let project_id = "pheme-1c7fd";
-    let data = MyData {
-        message: "Hello from Axum!".to_string(),
-    };
-    let ok: FcmNotification = FcmNotification {
-        body: "qqq".to_string(),
-        title: "qqq".to_string(),
-    };
-
-    send_fcm_message(
-        device_token,
-        Some(ok),
-        Some(data),
-        &token_manager,
-        &project_id,
-    )
-    .await
-    .map_err(|e| e.to_string())?;
-
-    Ok("FCM message sent successfully".to_string())
-}
 
 async fn root() -> &'static str {
     "streamware greets you!"
@@ -78,10 +44,10 @@ async fn main() -> Result<(), std::io::Error> {
             .await
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
-    let send_notification_consumer = create_consumer::<UserNotification>(
+    let user_notification_consumer = create_consumer::<UserNotification>(
         pulsar.clone(),
         "USER_NOTIFICATION",
-        "send-notification-subscription",
+        "user-notification-subscription",
     )
     .await
     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
@@ -91,19 +57,16 @@ async fn main() -> Result<(), std::io::Error> {
         pool.clone(),
         shared_token_manager.clone(),
     ));
-    let send_notification_runner = task::spawn(run_consumer(
-        send_notification_consumer,
+    let user_notification_runner = task::spawn(run_consumer(
+        user_notification_consumer,
         pool.clone(),
         shared_token_manager.clone(),
     ));
 
     let _ = user_created_runner.await?;
-    let _ = send_notification_runner.await?;
+    let _ = user_notification_runner.await?;
 
-    let app = Router::new()
-        .route("/", get(root))
-        .route("/send", post(send_notification))
-        .layer(Extension(shared_token_manager));
+    let app = Router::new().route("/", get(root));
 
     let listener = tokio::net::TcpListener::bind(format!("{}:{}", "127.0.0.1", "8080"))
         .await
