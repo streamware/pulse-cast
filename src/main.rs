@@ -8,7 +8,7 @@ use oauth_fcm::{
 use pulsar::{Pulsar, TokioExecutor};
 use pulse_cast::pulsar::{
     create_consumer::create_consumer,
-    messages::{SendNotification, UserCreated},
+    messages::{UserCreated, UserNotification},
     run_consumer::run_consumer,
 };
 use serde::Serialize;
@@ -54,6 +54,9 @@ async fn root() -> &'static str {
 async fn main() -> Result<(), std::io::Error> {
     dotenv().ok();
 
+    let shared_token_manager =
+        create_shared_token_manager("./firebase.json").expect("Could not find credentials.json");
+
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
     let config = AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(database_url);
@@ -75,23 +78,27 @@ async fn main() -> Result<(), std::io::Error> {
             .await
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
-    let send_notification_consumer = create_consumer::<SendNotification>(
+    let send_notification_consumer = create_consumer::<UserNotification>(
         pulsar.clone(),
-        "SEND_NOTIFCATION",
+        "USER_NOTIFICATION",
         "send-notification-subscription",
     )
     .await
     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
-    let user_created_runner = task::spawn(run_consumer(user_created_consumer, pool.clone()));
-    let send_notification_runner =
-        task::spawn(run_consumer(send_notification_consumer, pool.clone()));
+    let user_created_runner = task::spawn(run_consumer(
+        user_created_consumer,
+        pool.clone(),
+        shared_token_manager.clone(),
+    ));
+    let send_notification_runner = task::spawn(run_consumer(
+        send_notification_consumer,
+        pool.clone(),
+        shared_token_manager.clone(),
+    ));
 
     let _ = user_created_runner.await?;
     let _ = send_notification_runner.await?;
-
-    let shared_token_manager =
-        create_shared_token_manager("./firebase.json").expect("Could not find credentials.json");
 
     let app = Router::new()
         .route("/", get(root))
