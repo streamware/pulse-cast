@@ -1,3 +1,5 @@
+use std::{env, sync::Arc};
+
 use bb8::Pool;
 use chrono::{DateTime, Utc};
 use diesel::{insert_into, query_dsl::methods::FilterDsl, ExpressionMethods};
@@ -91,6 +93,13 @@ impl MessageHandler for UserNotification {
     ) -> Result<(), std::io::Error> {
         use schema::devices::dsl::*;
 
+        // let firebase_project_id = env::var("FIREBASE_PROJECT_ID")
+        //     .expect("FIREBASE_PROJECT_ID must be set")
+        //     .clone();
+
+        let firebase_project_id =
+            Arc::new(env::var("FIREBASE_PROJECT_ID").expect("FIREBASE_PROJECT_ID must be set"));
+
         let user_tokens: Vec<Device> = devices
             .filter(owner.eq(self.recipient_id.clone()))
             .filter(enabled.eq(true))
@@ -101,19 +110,23 @@ impl MessageHandler for UserNotification {
         let devices_stream = stream::iter(user_tokens);
 
         devices_stream
-            .for_each(|device| async move {
-                send_fcm_message(
-                    &device.device_token,
-                    None,
-                    Some(self),
-                    token_manager,
-                    "pheme-1c7fd",
-                )
-                .await
-                .map_err(|e| {
-                    println!("Error sending FCM message: {:?}", e);
-                })
-                .ok();
+            .for_each(|device| {
+                let firebase_project_id_clone = Arc::clone(&firebase_project_id);
+
+                async move {
+                    send_fcm_message(
+                        &device.device_token,
+                        None,
+                        Some(self),
+                        token_manager,
+                        &firebase_project_id_clone,
+                    )
+                    .await
+                    .map_err(|e| {
+                        println!("Error sending FCM message: {:?}", e);
+                    })
+                    .ok();
+                }
             })
             .await;
 

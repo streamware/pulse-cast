@@ -21,7 +21,7 @@ async fn main() -> Result<(), std::io::Error> {
     dotenv().ok();
 
     let shared_token_manager =
-        create_shared_token_manager("./firebase.json").expect("Could not find credentials.json");
+        create_shared_token_manager().expect("Could not find credentials.json");
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 

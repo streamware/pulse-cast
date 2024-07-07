@@ -31,10 +31,8 @@ use tracing::{info, instrument};
 /// # }
 /// ```
 #[instrument(level = "info")]
-pub fn create_shared_token_manager(
-    google_credentials_location: &str,
-) -> Result<SharedTokenManager, FcmError> {
+pub fn create_shared_token_manager() -> Result<SharedTokenManager, FcmError> {
     info!("Creating shared token manager");
-    let manager = TokenManager::new(google_credentials_location)?;
+    let manager = TokenManager::new()?;
     Ok(std::sync::Arc::new(tokio::sync::Mutex::new(manager)))
 }

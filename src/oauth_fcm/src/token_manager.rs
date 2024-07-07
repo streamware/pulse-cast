@@ -3,7 +3,10 @@ use jsonwebtoken::{encode, EncodingKey, Header};
 use reqwest::Client;
 use serde::Deserialize;
 use serde_json::json;
-use std::time::{Duration, Instant, SystemTime};
+use std::{
+    env,
+    time::{Duration, Instant, SystemTime},
+};
 use tracing::{debug, info, instrument};
 
 /// A thread-safe, shared reference to a `TokenManager`.
@@ -31,14 +34,6 @@ pub type SharedTokenManager = std::sync::Arc<tokio::sync::Mutex<TokenManager>>;
 pub struct TokenManager {
     token: Option<String>,
     expires_at: Option<Instant>,
-    service_account_key: ServiceAccountKey,
-}
-
-#[derive(Deserialize, Debug)]
-struct ServiceAccountKey {
-    private_key: String,
-    client_email: String,
-    private_key_id: String,
 }
 
 impl TokenManager {
@@ -54,16 +49,12 @@ impl TokenManager {
     ///
     /// This function will return an error if the Google credentials could not be read or parsed.
     #[instrument(level = "info")]
-    pub fn new(google_credentials_location: &str) -> Result<Self, FcmError> {
+    pub fn new() -> Result<Self, FcmError> {
         info!("Creating new TokenManager");
-        let service_account_key_json = std::fs::read_to_string(google_credentials_location)?;
-        let service_account_key: ServiceAccountKey =
-            serde_json::from_str(&service_account_key_json)?;
 
         Ok(TokenManager {
             token: None,
             expires_at: None,
-            service_account_key,
         })
     }
 
@@ -133,7 +124,7 @@ impl TokenManager {
         auth_server_url: &str,
     ) -> Result<String, FcmError> {
         info!("Refreshing token with URL: {}", auth_server_url);
-        let signed_jwt = create_signed_jwt(&self.service_account_key)?;
+        let signed_jwt = create_signed_jwt()?;
         let access_token_response = get_access_token(&signed_jwt, auth_server_url).await?;
 
         let new_token = access_token_response.access_token;
@@ -147,10 +138,11 @@ impl TokenManager {
 }
 
 #[instrument(level = "debug")]
-fn create_signed_jwt(service_account_key: &ServiceAccountKey) -> Result<String, FcmError> {
+fn create_signed_jwt() -> Result<String, FcmError> {
     debug!("Creating signed JWT");
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
-    header.kid = Some(service_account_key.private_key_id.clone());
+    header.kid =
+        Some(env::var("FIREBASE_PRIVATE_KEY_ID").expect("FIREBASE_PRIVATE_KEY_ID must be set"));
 
     let now = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -158,14 +150,19 @@ fn create_signed_jwt(service_account_key: &ServiceAccountKey) -> Result<String, 
         .as_secs();
 
     let claims = json!({
-        "iss": service_account_key.client_email,
+        "iss": env::var("FIREBASE_CLIENT_EMAIL").expect("FIREBASE_CLIENT_EMAIL must be set"),
         "scope": "https://www.googleapis.com/auth/firebase.messaging",
         "aud": "https://oauth2.googleapis.com/token",
         "exp": now + 3600,
         "iat": now
     });
 
-    let encoding_key = EncodingKey::from_rsa_pem(service_account_key.private_key.as_bytes())?;
+    let encoding_key = EncodingKey::from_rsa_pem(
+        env::var("FIREBASE_PRIVATE_KEY")
+            .expect("FIREBASE_PRIVATE_KEY must be set")
+            .as_bytes(),
+    )?;
+
     let signed_jwt = encode(&header, &claims, &encoding_key).map_err(FcmError::JwtEncodeError)?;
     debug!("Signed JWT created");
     Ok(signed_jwt)
