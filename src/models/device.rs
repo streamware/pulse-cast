@@ -1,8 +1,9 @@
 use crate::schema::devices;
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Queryable, Selectable, Debug)]
+#[derive(Insertable, Queryable, Selectable, Serialize, Deserialize, Debug)]
 #[diesel(table_name = devices )]
 #[diesel(belongs_to(User))]
 #[diesel(check_for_backend(diesel::pg::Pg))]
