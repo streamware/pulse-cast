@@ -68,8 +68,13 @@ async fn main() -> Result<(), std::io::Error> {
         shared_token_manager.clone(),
     ));
 
-    let _ = user_created_runner.await?;
-    let _ = user_notification_runner.await?;
+    tokio::spawn(async {
+        let _ = user_created_runner.await;
+    });
+
+    tokio::spawn(async {
+        let _ = user_notification_runner.await;
+    });
 
     let app = Router::new()
         .route("/", get(root))
