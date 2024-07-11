@@ -1,5 +1,9 @@
 extern crate pulse_cast;
-use axum::{routing::get, Router};
+
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 use dotenvy::dotenv;
 use oauth_fcm::create_shared_token_manager;
@@ -9,6 +13,7 @@ use pulse_cast::pulsar::{
     messages::{UserCreated, UserNotification},
     run_consumer::run_consumer,
 };
+use pulse_cast::routes::register_device::register_device;
 use std::env;
 use tokio::task;
 
@@ -63,12 +68,20 @@ async fn main() -> Result<(), std::io::Error> {
         shared_token_manager.clone(),
     ));
 
-    let _ = user_created_runner.await?;
-    let _ = user_notification_runner.await?;
+    tokio::spawn(async {
+        let _ = user_created_runner.await;
+    });
 
-    let app = Router::new().route("/", get(root));
+    tokio::spawn(async {
+        let _ = user_notification_runner.await;
+    });
 
-    let listener = tokio::net::TcpListener::bind(format!("{}:{}", "127.0.0.1", "8080"))
+    let app = Router::new()
+        .route("/", get(root))
+        .route("/register-device", post(register_device))
+        .with_state(pool);
+
+    let listener = tokio::net::TcpListener::bind(format!("{}:{}", "127.0.0.1", "9090"))
         .await
         .expect("Failed to bind to address");
 
