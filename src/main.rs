@@ -13,13 +13,9 @@ use pulse_cast::pulsar::{
     messages::{UserCreated, UserNotification},
     run_consumer::run_consumer,
 };
-use pulse_cast::routes::register_device::register_device;
+use pulse_cast::routes::{register_device::register_device, root::root};
 use std::env;
 use tokio::task;
-
-async fn root() -> &'static str {
-    "streamware greets you!"
-}
 
 #[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
