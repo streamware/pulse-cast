@@ -3,7 +3,7 @@ use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 
 use crate::{
-    errors::http_errors::internal_error,
+    core::errors::http_errors::internal_error,
     models::device::{CreateDevice, Device},
     schema::devices,
     types::db::Pool,

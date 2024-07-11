@@ -1,4 +1,4 @@
-pub mod errors;
+pub mod core;
 pub mod models;
 pub mod pulsar;
 pub mod routes;

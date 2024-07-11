@@ -1,8 +1,8 @@
-use crate::schema::devices;
+use crate::{core::validations::boolean_validator::validate_enabled, schema::devices};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
-use validator::{Validate, ValidationError};
+use validator::Validate;
 
 #[derive(Queryable, Selectable, Serialize, Deserialize, Debug)]
 #[diesel(table_name = devices )]
@@ -19,16 +19,6 @@ pub struct Device {
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
-
-// Custom validation function for the `enabled` field
-fn validate_enabled(enabled: &bool) -> Result<(), ValidationError> {
-    if *enabled {
-        Ok(())
-    } else {
-        Err(ValidationError::new("enabled_must_be_true"))
-    }
-}
-
 #[derive(Insertable, Serialize, Deserialize, Validate, Debug)]
 #[diesel(table_name = devices )]
 pub struct CreateDevice {
