@@ -10,7 +10,7 @@ use validator::Validate;
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Device {
     pub id: i32,
-    pub owner: String,
+    pub owner: i32,
     pub device_name: String,
     pub device_type: String,
     pub device_token: String,
@@ -23,7 +23,7 @@ pub struct Device {
 #[diesel(table_name = devices )]
 pub struct CreateDevice {
     // @TODO: needs UUID validate
-    pub owner: String,
+    pub owner: i32,
     pub device_name: String,
     pub device_type: String,
     pub device_token: String,

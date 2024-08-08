@@ -1,7 +1,7 @@
 use std::{env, sync::Arc};
 
 use bb8::Pool;
-use chrono::{DateTime, Utc};
+use chrono::{NaiveDateTime, Utc};
 use diesel::{insert_into, query_dsl::methods::FilterDsl, ExpressionMethods};
 use diesel_async::{
     pooled_connection::AsyncDieselConnectionManager, AsyncPgConnection, RunQueryDsl,
@@ -26,7 +26,7 @@ pub trait MessageHandler {
 
 #[derive(Debug, Deserialize)]
 pub struct UserCreated {
-    id: String,
+    id: i32,
     username: String,
     created_at: String,
 }
@@ -53,10 +53,13 @@ impl MessageHandler for UserCreated {
             .values(User {
                 id: self.id.clone(),
                 username: self.username.clone(),
-                created_at: DateTime::parse_from_rfc3339(self.created_at.as_str())
-                    .expect("Failed to parse datetime")
-                    .with_timezone(&Utc)
-                    .naive_utc(), // Convert to NaiveDateTime
+                created_at: NaiveDateTime::parse_from_str(
+                    self.created_at.as_str(),
+                    "%Y-%m-%dT%H:%M:%S%.f",
+                )
+                .expect("Failed to parse datetime"),
+                // .with_timezone(&Utc)
+                // .naive_utc(), // Convert to NaiveDateTime
                 updated_at: Utc::now().naive_utc(), // Provide a default value for updated_at
             })
             .execute(&mut pool.get().await.unwrap())
@@ -70,8 +73,8 @@ impl MessageHandler for UserCreated {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserNotification {
-    recipient_id: String,
-    sender_id: String,
+    recipient_id: i32,
+    sender_id: i32,
     sender_username: String,
     content: String,
     created_at: String,

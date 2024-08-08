@@ -77,7 +77,7 @@ async fn main() -> Result<(), std::io::Error> {
         .route("/register-device", post(register_device))
         .with_state(pool);
 
-    let listener = tokio::net::TcpListener::bind(format!("{}:{}", "127.0.0.1", "9090"))
+    let listener = tokio::net::TcpListener::bind(format!("{}:{}", "127.0.0.1", "9091"))
         .await
         .expect("Failed to bind to address");
 

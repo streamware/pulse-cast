@@ -6,7 +6,7 @@ use diesel::prelude::*;
 #[diesel(table_name = users )] // Use the imported `users` module
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct User {
-    pub id: String,
+    pub id: i32,
     pub username: String,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,

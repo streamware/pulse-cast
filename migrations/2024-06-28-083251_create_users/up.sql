@@ -1,6 +1,5 @@
--- Your SQL goes here
 CREATE TABLE "users" (
-    "id" TEXT UNIQUE NOT NULL PRIMARY KEY,
+    "id" INT UNIQUE NOT NULL PRIMARY KEY,
     "username" TEXT UNIQUE NOT NULL,
     "created_at" TIMESTAMP NOT NULL,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
